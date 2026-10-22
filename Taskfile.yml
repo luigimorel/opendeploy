@@ -1,0 +1,181 @@
+# One repo, one binary: the React app is compiled to web/dist and embedded
+# into the Go executable with //go:embed (see web/embed.go).
+version: "3"
+
+# Loads DATABASE_URL, ... for every task (see .env.example).
+dotenv: [".env"]
+
+vars:
+  APP: open-deploy
+  PKG: ./cmd
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo none
+  DATE:
+    sh: date -u +%Y-%m-%dT%H:%M:%SZ
+  # Uses $DATABASE_URL when set (e.g. from your shell), else the local Docker default.
+  DATABASE_URL:
+    sh: echo "${DATABASE_URL:-postgres://postgres:password@localhost:5432/opendeploy?sslmode=disable}"
+  # Uses $TEST_DATABASE_URL when set, else a separate local database.
+  TEST_DATABASE_URL:
+    sh: echo "${TEST_DATABASE_URL:-postgres://postgres:password@localhost:5432/opendeploy_test?sslmode=disable}"
+  MIGRATIONS_DIR: ./internal/datastore/postgres/migrations
+  LDFLAGS: -s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.date={{.DATE}}
+  # Avoid ./... : it would also walk web/node_modules.
+  GO_PKGS: ./cmd/... ./config/... ./internal/... ./mocks/... ./server/... ./web .
+
+tasks:
+  default:
+    desc: List all tasks
+    silent: true
+    cmds:
+      - task --list
+
+  tidy:
+    desc: Fix the dependencies
+    cmds:
+      - go mod tidy
+
+  lint:
+    desc: Lint all the Go files using golangci-lint
+    cmds:
+      - golangci-lint run {{.GO_PKGS}}
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet {{.GO_PKGS}}
+
+  tools:install:
+    desc: Install dev tools (built with your local Go toolchain)
+    cmds:
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      - go install github.com/air-verse/air@latest
+      - go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+  db:start:
+    desc: Start a local Postgres in Docker (data persists in the open-deploy-pg volume)
+    cmds:
+      - >-
+        docker run -d --name open-deploy-pg -p 5432:5432
+        -e POSTGRES_PASSWORD=password -e POSTGRES_DB=opendeploy
+        -v open-deploy-pg:/var/lib/postgresql/data postgres:16-alpine
+      - echo "Postgres is starting. Next -> task migrate && task seed"
+
+  db:stop:
+    desc: Stop and remove the local Postgres container (keeps the volume)
+    cmds:
+      - docker rm -f open-deploy-pg
+
+  migrate:create:
+    desc: "Create a new migration pair: task migrate:create -- add_something"
+    vars:
+      NAME: "{{.CLI_ARGS}}"
+    cmds:
+      - migrate create -ext sql -dir {{.MIGRATIONS_DIR}} -format 20060102150405 {{.NAME}}
+
+  migrate:
+    desc: Apply all up database migrations
+    cmds:
+      - migrate -path {{.MIGRATIONS_DIR}} -database "{{.DATABASE_URL}}" up
+
+  migrate:down:one:
+    desc: Rollback the last database migration
+    cmds:
+      - migrate -path {{.MIGRATIONS_DIR}} -database "{{.DATABASE_URL}}" down 1
+
+  seed:
+    desc: Seed the database with a demo organization and user (idempotent)
+    env:
+      DATABASE_URL: "{{.DATABASE_URL}}"
+    cmds:
+      - go run ./cmd/cli seed {{.CLI_ARGS}}
+
+  generate:all:
+    desc: Run all go generate directives
+    cmds:
+      - go generate {{.GO_PKGS}}
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - go test -v {{.GO_PKGS}}
+
+  test-all:
+    desc: Run all tests including Postgres integration tests (needs a migrated test database)
+    env:
+      TEST_DATABASE_URL: "{{.TEST_DATABASE_URL}}"
+    cmds:
+      - go test -v -count=1 -tags integration {{.GO_PKGS}}
+
+  run:http:
+    desc: Run the Go API on :8080 with live reload (frontend not required)
+    cmds:
+      - air
+
+  run:web:
+    desc: Run the Vite dev server with hot reload; proxies /api to :8080
+    dir: web
+    cmds:
+      - npm run dev
+
+  web:install:
+    desc: Install frontend dependencies
+    dir: web
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/.package-lock.json
+    cmds:
+      - npm ci
+
+  web:build:
+    desc: Build the frontend into web/dist
+    deps: [web:install]
+    dir: web
+    cmds:
+      - npm run build
+      # vite empties dist/; keep the placeholder so `go build` works on a fresh clone
+      - touch dist/.gitkeep
+
+  build:
+    desc: Build the single binary -> bin/open-deploy
+    deps: [web:build]
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - go build -trimpath -ldflags "{{.LDFLAGS}}" -o bin/{{.APP}} {{.PKG}}
+
+  run:
+    desc: Build and run on :8080
+    deps: [build]
+    cmds:
+      - ./bin/{{.APP}}
+
+  dist:
+    desc: Cross-compile for linux/darwin/windows -> dist/
+    deps: [web:build]
+    env:
+      CGO_ENABLED: "0"
+    cmds:
+      - mkdir -p dist
+      - for: ["linux/amd64", "linux/arm64", "darwin/arm64", "darwin/amd64", "windows/amd64"]
+        cmd: |
+          t="{{.ITEM}}"; os="${t%/*}"; arch="${t#*/}"; ext=""
+          [ "$os" = windows ] && ext=".exe"
+          echo "-> $os/$arch"
+          GOOS=$os GOARCH=$arch go build -trimpath -ldflags "{{.LDFLAGS}}" \
+            -o "dist/{{.APP}}-$os-$arch$ext" {{.PKG}}
+
+  docker:
+    desc: Build the container image
+    cmds:
+      - docker build --build-arg VERSION={{.VERSION}} -t {{.APP}}:{{.VERSION}} .
+
+  clean:
+    desc: Remove build output (keeps web/dist/.gitkeep)
+    cmds:
+      - rm -rf bin dist tmp
+      - find web/dist -mindepth 1 ! -name .gitkeep -delete

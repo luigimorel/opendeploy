@@ -1,0 +1,10 @@
+/bin/
+/dist/
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
+*.local
+.DS_Store
+/tmp/
+.env
+.config.yaml
