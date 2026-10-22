@@ -100,12 +100,4 @@ Tables: `organizations`, `users`.
   (versioned ones go in the `/v1` group).
 - Version info: `./open-deploy -version` (set by `-ldflags` in the Taskfile).
 
-## Notes
 
-- Replace the placeholder module path `github.com/yourorg/opendeploy` in `go.mod` and the
-  imports under `cmd/`, `server/`, `internal/`, `mocks/` with your real one.
-- Taskfile uses explicit package paths (`GO_PKGS`), not `./...`, so Go
-  doesn't walk `web/node_modules`.
-- Only `/api/healthz` and `/api/version` are exposed so far. `Organization` and `User` have
-  repositories ready for handlers (`server/handlers.go`) and mocks in `mocks/`.
-- Needs Go 1.22+ and Node 20+ to build; the binary itself has no runtime dependencies.
