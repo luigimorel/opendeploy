@@ -1,17 +1,16 @@
 export const initials = (name: string) =>
   name
-    .split(" ")
+    .split(' ')
     .map((p) => p[0])
-    .join("")
+    .join('')
     .slice(0, 2)
     .toUpperCase();
 
-export const pct = (n: number, d: number) =>
-  d === 0 ? "0%" : `${((n / d) * 100).toFixed(1)}%`;
+export const pct = (n: number, d: number) => (d === 0 ? '0%' : `${((n / d) * 100).toFixed(1)}%`);
 
 export const compact = (n: number) =>
-  new Intl.NumberFormat("en", {
-    notation: "compact",
+  new Intl.NumberFormat('en', {
+    notation: 'compact',
     maximumFractionDigits: 1,
   }).format(n);
 
