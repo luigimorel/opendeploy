@@ -1,8 +1,5 @@
-# One repo, one binary: the React app is compiled to web/dist and embedded
-# into the Go executable with //go:embed (see web/embed.go).
 version: "3"
 
-# Loads DATABASE_URL, ... for every task (see .env.example).
 dotenv: [".env"]
 
 vars:
@@ -14,15 +11,12 @@ vars:
     sh: git rev-parse --short HEAD 2>/dev/null || echo none
   DATE:
     sh: date -u +%Y-%m-%dT%H:%M:%SZ
-  # Uses $DATABASE_URL when set (e.g. from your shell), else the local Docker default.
   DATABASE_URL:
     sh: echo "${DATABASE_URL:-postgres://postgres:password@localhost:5432/opendeploy?sslmode=disable}"
-  # Uses $TEST_DATABASE_URL when set, else a separate local database.
   TEST_DATABASE_URL:
     sh: echo "${TEST_DATABASE_URL:-postgres://postgres:password@localhost:5432/opendeploy_test?sslmode=disable}"
   MIGRATIONS_DIR: ./internal/datastore/postgres/migrations
   LDFLAGS: -s -w -X main.version={{.VERSION}} -X main.commit={{.COMMIT}} -X main.date={{.DATE}}
-  # Avoid ./... : it would also walk web/node_modules.
   GO_PKGS: ./cmd/... ./config/... ./internal/... ./mocks/... ./server/... ./web .
 
 tasks:
@@ -137,7 +131,6 @@ tasks:
     dir: web
     cmds:
       - npm run build
-      # vite empties dist/; keep the placeholder so `go build` works on a fresh clone
       - touch dist/.gitkeep
 
   build:
@@ -161,7 +154,14 @@ tasks:
       CGO_ENABLED: "0"
     cmds:
       - mkdir -p dist
-      - for: ["linux/amd64", "linux/arm64", "darwin/arm64", "darwin/amd64", "windows/amd64"]
+      - for:
+          [
+            "linux/amd64",
+            "linux/arm64",
+            "darwin/arm64",
+            "darwin/amd64",
+            "windows/amd64",
+          ]
         cmd: |
           t="{{.ITEM}}"; os="${t%/*}"; arch="${t#*/}"; ext=""
           [ "$os" = windows ] && ext=".exe"

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 
- 
 export default function useDialogState<T extends string | boolean>(initialState: T | null = null) {
   const [open, _setOpen] = useState<T | null>(initialState);
 
