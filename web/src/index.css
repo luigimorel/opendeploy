@@ -1,22 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@font-face {
-  font-family: 'Qanelas Soft';
-  src: url('./assets/fonts/QanelasSoftDEMO-UltraLight.otf') format('opentype');
-  font-weight: 200;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Qanelas Soft';
-  src: url('./assets/fonts/QanelasSoftDEMO-ExtraBold.otf') format('opentype');
-  font-weight: 800;
-  font-style: normal;
-  font-display: swap;
-}
-
 @custom-variant dark (&:is(.dark *));
 
 /* Brand palette: deep teal and white, with neutrals derived from teal. */
@@ -51,7 +35,8 @@
 }
 
 @theme inline {
-  --font-sans: 'Qanelas Soft', sans-serif;
+  --font-sans: 'Roboto', sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -80,6 +65,15 @@
 @layer base {
   * {
     @apply outline-ring/50;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: 'Space Grotesk', sans-serif;
   }
 
   body {

@@ -8,8 +8,8 @@ export function Overview() {
       <span className="bg-accent text-primary flex size-12 items-center justify-center rounded-xl">
         <Rocket className="size-6" strokeWidth={1.75} />
       </span>
-      <h2 className="text-lg font-semibold tracking-tight">Welcome to Open Deploy</h2>
-      <p className="text-muted-foreground max-w-md text-sm">Git-based hosting, self-hosted. Nothing is deployed yet.</p>
+      <h2 className="text-lg font-semibold tracking-tight">No projects yet</h2>
+      <p className="text-muted-foreground max-w-md text-sm">Connect a Git repository to get started.</p>
     </Card>
   );
 }
